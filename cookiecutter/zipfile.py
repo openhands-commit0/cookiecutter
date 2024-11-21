@@ -66,43 +66,63 @@ def unzip(zip_uri: str, is_url: bool, clone_to_dir: 'os.PathLike[str]'='.', no_i
             pwd = os.environ.get('COOKIECUTTER_REPO_PASSWORD')
 
         with ZipFile(zip_path) as zip_file:
+            # Check if zip file is empty
+            namelist = zip_file.namelist()
+            if not namelist:
+                raise InvalidZipRepository(
+                    'Zip file is empty'
+                )
+
             # Check if password protected
-            if zip_file.namelist()[0].endswith('/'):
-                base_dir = zip_file.namelist()[0]
+            try:
+                # Try to read first file to check if password is needed
+                zip_file.read(namelist[0], pwd=pwd.encode('utf-8') if pwd else None)
+            except RuntimeError:
+                if no_input:
+                    raise InvalidZipRepository(
+                        'Zip file is password protected but no password provided'
+                    )
+                pwd = read_repo_password('Zip is password protected. Please enter the password')
+                try:
+                    zip_file.read(namelist[0], pwd=pwd.encode('utf-8'))
+                except RuntimeError as e:
+                    raise InvalidZipRepository(
+                        'Invalid password provided for protected repository'
+                    ) from e
+
+            # Find base directory
+            if namelist[0].endswith('/'):
+                base_dir = namelist[0]
             else:
-                base_dir = os.path.commonprefix(zip_file.namelist()).rstrip('/')
+                base_dir = os.path.commonprefix(namelist).rstrip('/')
 
             if not base_dir:
                 raise InvalidZipRepository(
                     'CookieCutter templates must have a top level directory'
                 )
 
-            # Try to extract with given password
+            # Extract files
             try:
                 zip_file.extractall(temp_dir, pwd=pwd.encode('utf-8') if pwd else None)
-            except (RuntimeError, BadZipFile):
-                # Try with a new password if extraction failed
-                if not no_input:
-                    pwd = read_repo_password('Zip is password protected. Please enter the password')
-                    try:
-                        zip_file.extractall(temp_dir, pwd=pwd.encode('utf-8') if pwd else None)
-                    except (RuntimeError, BadZipFile) as e:
-                        raise InvalidZipRepository(
-                            'Invalid password provided for protected repository'
-                        ) from e
-                else:
-                    raise InvalidZipRepository(
-                        'Unable to extract zip file contents'
-                    )
+            except (RuntimeError, BadZipFile) as e:
+                raise InvalidZipRepository(
+                    'Unable to extract zip file contents'
+                ) from e
 
-        # Check that the unzipped dir contains a cookiecutter.json
-        dir_contents = os.listdir(os.path.join(temp_dir, base_dir))
-        if 'cookiecutter.json' not in dir_contents:
-            raise InvalidZipRepository(
-                'Zip repository does not contain a cookiecutter.json file'
-            )
+            # Check that the unzipped dir contains a cookiecutter.json
+            base_dir_path = os.path.join(temp_dir, base_dir)
+            if not os.path.isdir(base_dir_path):
+                raise InvalidZipRepository(
+                    'Zip file does not contain a valid template directory'
+                )
 
-        return os.path.join(temp_dir, base_dir)
+            dir_contents = os.listdir(base_dir_path)
+            if 'cookiecutter.json' not in dir_contents:
+                raise InvalidZipRepository(
+                    'Zip repository does not contain a cookiecutter.json file'
+                )
+
+            return base_dir_path
 
     except (BadZipFile, RuntimeError) as e:
         raise InvalidZipRepository(
