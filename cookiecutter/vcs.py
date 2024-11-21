@@ -117,7 +117,7 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
         ) from e
     except Exception as e:
         raise RepositoryCloneFailed(
-            f'Failed to clone repository {repo_url}:\n{str(e)}'
+            f'Failed to clone repository {repo_url}:\n{output}'
         ) from e
 
     # Checkout specific branch, tag, or commit
