@@ -18,6 +18,7 @@ def identify_repo(repo_url):
 
     :param repo_url: Repo URL of unknown type.
     :returns: ('git', repo_url), ('hg', repo_url), or None.
+    :raises: UnknownRepoType if the repo type cannot be determined.
     """
     if repo_url.startswith('git+'):
         return 'git', repo_url[4:]
@@ -34,6 +35,9 @@ def identify_repo(repo_url):
         return 'git', repo_url
     elif repo_url.endswith('.hg'):
         return 'hg', repo_url
+    elif '@' in repo_url and ':' in repo_url:
+        # SSH URL format: [user@]host:path
+        return 'git', repo_url
     raise UnknownRepoType
 
 def is_vcs_installed(repo_type):
@@ -55,6 +59,9 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
     :param no_input: Do not prompt for user input and eventually force a refresh of
         cached resources.
     :returns: str with path to the new directory of the repository.
+    :raises: VCSNotInstalled if the required VCS is not installed
+            RepositoryNotFound if the repository cannot be found
+            RepositoryCloneFailed if the repository cannot be cloned
     """
     # Ensure clone_to_dir exists
     clone_to_dir = os.path.expanduser(clone_to_dir)
@@ -102,6 +109,10 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
         raise RepositoryCloneFailed(
             f'Failed to clone repository {repo_url}:\n{output}'
         ) from e
+    except Exception as e:
+        raise RepositoryCloneFailed(
+            f'Failed to clone repository {repo_url}:\n{str(e)}'
+        ) from e
 
     # Checkout specific branch, tag, or commit
     if checkout is not None:
@@ -117,11 +128,15 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
             output = e.output.decode('utf-8')
             if any(error in output for error in BRANCH_ERRORS):
                 raise RepositoryCloneFailed(
-                    f'Could not find a tag or branch {checkout}, '
+                    f'The {checkout} branch of repository {repo_url} could not found, '
                     'have you made a typo?'
                 ) from e
             raise RepositoryCloneFailed(
                 f'Failed to checkout {checkout}:\n{output}'
+            ) from e
+        except Exception as e:
+            raise RepositoryCloneFailed(
+                f'Failed to checkout {checkout}:\n{str(e)}'
             ) from e
 
     return repo_dir
