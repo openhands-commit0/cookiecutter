@@ -134,8 +134,8 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
             output = e.output.decode('utf-8')
             if any(error in output for error in BRANCH_ERRORS):
                 raise RepositoryCloneFailed(
-                    f'The {checkout} branch of repository {repo_url} could not found, '
-                    'have you made a typo?'
+                    'The {} branch of repository {} could not found, '
+                    'have you made a typo?'.format(checkout, repo_url)
                 ) from e
             raise RepositoryCloneFailed(
                 f'Failed to checkout {checkout}:\n{output}'
