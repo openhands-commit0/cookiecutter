@@ -94,7 +94,8 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
             logger.debug('Removing %s', repo_dir)
             subprocess.check_output(['rm', '-rf', repo_dir])
         else:
-            prompt_and_delete(repo_dir)
+            if not prompt_and_delete(repo_dir):
+                return repo_dir
 
     # Clone the repo
     clone_cmd = [repo_type, 'clone', repo_url]
