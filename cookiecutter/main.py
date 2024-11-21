@@ -46,8 +46,72 @@ def cookiecutter(template, checkout=None, no_input=False, extra_context=None, re
     :param accept_hooks: Accept pre and post hooks if set to `True`.
     :param keep_project_on_failure: If `True` keep generated project directory even when
         generation fails
+    :raises: `InvalidModeException` if both `no_input` and `replay` are True.
     """
-    pass
+    if replay and no_input:
+        raise InvalidModeException(
+            'You cannot use both replay and no_input flags at the same time.'
+        )
+
+    # Get user config from ~/.cookiecutterrc or equivalent
+    config_dict = get_user_config(
+        config_file=config_file,
+        default_config=default_config,
+    )
+
+    # Get the repo dir, where the cookiecutter template source is stored
+    repo_dir, cleanup = determine_repo_dir(
+        template=template,
+        abbreviations=config_dict['abbreviations'],
+        clone_to_dir=config_dict['cookiecutters_dir'],
+        checkout=checkout,
+        no_input=no_input,
+        password=password,
+        directory=directory
+    )
+
+    # Run pre-prompt hook if it exists
+    if accept_hooks:
+        with _patch_import_path_for_repo(repo_dir):
+            run_pre_prompt_hook(repo_dir)
+
+    # Determine context dict for rendering template
+    if replay:
+        context = load(config_dict['replay_dir'], template)
+    else:
+        # First generate context from json file defaults
+        context = generate_context(
+            context_file=os.path.join(repo_dir, 'cookiecutter.json'),
+            default_context=config_dict['default_context'],
+            extra_context=extra_context,
+        )
+
+        # If not using replay, prompt user for values
+        if not no_input:
+            context = prompt_for_config(context)
+
+            # Include any nested templates
+            context = choose_nested_template(context, repo_dir)
+
+            # Save context for later replay
+            dump(config_dict['replay_dir'], template, context)
+
+    # Create project from local context and project template.
+    result = generate_files(
+        repo_dir=repo_dir,
+        context=context,
+        overwrite_if_exists=overwrite_if_exists,
+        skip_if_file_exists=skip_if_file_exists,
+        output_dir=output_dir,
+        accept_hooks=accept_hooks,
+        keep_project_on_failure=keep_project_on_failure,
+    )
+
+    # Cleanup (if required)
+    if cleanup:
+        rmtree(repo_dir)
+
+    return result
 
 class _patch_import_path_for_repo:
 
