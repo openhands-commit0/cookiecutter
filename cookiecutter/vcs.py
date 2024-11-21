@@ -146,4 +146,4 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
             ) from e
 
     # Convert repo_dir to string to match test expectations
-    return str(repo_dir)
+    return str(repo_dir).rstrip('/')
