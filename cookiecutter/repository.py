@@ -4,15 +4,20 @@ import re
 from cookiecutter.exceptions import RepositoryNotFound
 from cookiecutter.vcs import clone
 from cookiecutter.zipfile import unzip
-REPO_REGEX = re.compile('\n# something like git:// ssh:// file:// etc.\n((((git|hg)\\+)?(git|ssh|file|https?):(//)?)\n |                                      # or\n (\\w+@[\\w\\.]+)                          # something like user@...\n)\n', re.VERBOSE)
+REPO_REGEX = re.compile(r'''
+# something like git:// ssh:// file:// etc.
+((((git|hg)\+)?(git|ssh|file|https?):(//)?)|
+# or
+(\w+@[\w\.]+))
+''', re.VERBOSE)
 
 def is_repo_url(value):
     """Return True if value is a repository URL."""
-    pass
+    return bool(REPO_REGEX.match(value))
 
 def is_zip_file(value):
     """Return True if value is a zip file."""
-    pass
+    return value.endswith('.zip') or value.endswith('.gz') or value.endswith('.tar')
 
 def expand_abbreviations(template, abbreviations):
     """Expand abbreviations in a template name.
@@ -20,7 +25,18 @@ def expand_abbreviations(template, abbreviations):
     :param template: The project template name.
     :param abbreviations: Abbreviation definitions.
     """
-    pass
+    # Split on colon only if it is not preceded by a backslash
+    pattern = re.compile(r'(?<!\\):')
+    parts = pattern.split(template)
+
+    if len(parts) > 1 and parts[0] in abbreviations:
+        template = abbreviations[parts[0]]
+        if len(parts) > 2:
+            template = template.format(*parts[1:])
+        else:
+            template = template.format(parts[1])
+
+    return template
 
 def repository_has_cookiecutter_json(repo_directory):
     """Determine if `repo_directory` contains a `cookiecutter.json` file.
@@ -28,7 +44,9 @@ def repository_has_cookiecutter_json(repo_directory):
     :param repo_directory: The candidate repository directory.
     :return: True if the `repo_directory` is valid, else False.
     """
-    pass
+    repo_directory_exists = os.path.isdir(repo_directory)
+    repo_config_exists = os.path.isfile(os.path.join(repo_directory, 'cookiecutter.json'))
+    return repo_directory_exists and repo_config_exists
 
 def determine_repo_dir(template, abbreviations, clone_to_dir, checkout, no_input, password=None, directory=None):
     """
@@ -53,4 +71,54 @@ def determine_repo_dir(template, abbreviations, clone_to_dir, checkout, no_input
         after the template has been instantiated.
     :raises: `RepositoryNotFound` if a repository directory could not be found.
     """
-    pass
+    # Expand abbreviations in template name
+    template = expand_abbreviations(template, abbreviations)
+
+    # If it's a local repo, no need to clone or copy
+    if os.path.isdir(template):
+        repository_candidates = [template]
+        if directory:
+            repository_candidates.append(os.path.join(template, directory))
+        for repository_candidate in repository_candidates:
+            if repository_has_cookiecutter_json(repository_candidate):
+                return repository_candidate, False
+
+    # If it's a URL and ends with .zip, download and unpack it
+    if is_zip_file(template):
+        downloaded_repo_dir = unzip(
+            zip_uri=template,
+            is_url=is_repo_url(template),
+            clone_to_dir=clone_to_dir,
+            no_input=no_input,
+            password=password
+        )
+        repository_candidates = [downloaded_repo_dir]
+        if directory:
+            repository_candidates.append(os.path.join(downloaded_repo_dir, directory))
+        for repository_candidate in repository_candidates:
+            if repository_has_cookiecutter_json(repository_candidate):
+                return repository_candidate, True
+
+    # Otherwise, assume it's a git or mercurial repo URL
+    repo_dir = clone(
+        repo_url=template,
+        checkout=checkout,
+        clone_to_dir=clone_to_dir,
+        no_input=no_input
+    )
+
+    repository_candidates = [repo_dir]
+    if directory:
+        repository_candidates.append(os.path.join(repo_dir, directory))
+
+    for repository_candidate in repository_candidates:
+        if repository_has_cookiecutter_json(repository_candidate):
+            return repository_candidate, True
+
+    raise RepositoryNotFound(
+        'A valid repository for "{}" could not be found in the following '
+        'locations:\n{}'.format(
+            template,
+            '\n'.join(repository_candidates)
+        )
+    )
