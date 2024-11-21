@@ -32,15 +32,20 @@ def find_template(repo_dir: 'os.PathLike[str]', env: Environment) -> Path:
     if (template_dir / 'cookiecutter.json').exists():
         return template_dir
 
-    # Check for a cookiecutter.json file in a {{cookiecutter.project_name}} directory
-    template_dir = repo_dir / '{{cookiecutter.project_name}}'
-    if (template_dir / 'cookiecutter.json').exists():
-        return template_dir
-
     # Check for a cookiecutter.json file in any of the subdirectories
     for dir_name in os.listdir(repo_dir):
         dir_path = repo_dir / dir_name
         if dir_path.is_dir() and not dir_name.startswith('.'):
+            # Try to render the directory name with Jinja2
+            try:
+                rendered_name = env.from_string(dir_name).render()
+                rendered_path = repo_dir / rendered_name
+                if (rendered_path / 'cookiecutter.json').exists():
+                    return rendered_path
+            except Exception:
+                pass
+
+            # Try the original directory name
             if (dir_path / 'cookiecutter.json').exists():
                 return dir_path
 
