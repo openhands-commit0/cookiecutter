@@ -76,7 +76,12 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
         raise VCSNotInstalled(f'{repo_type} is not installed.')
 
     repo_url = repo_url.rstrip('/')
-    repo_name = repo_url.rsplit('/', 1)[-1]
+    if '@' in repo_url and ':' in repo_url:
+        # SSH URL format: [user@]host:path
+        repo_name = repo_url.rsplit(':', 1)[-1]
+    else:
+        repo_name = repo_url.rsplit('/', 1)[-1]
+
     if repo_type == 'git':
         repo_name = repo_name.rsplit('.git', 1)[0]
     elif repo_type == 'hg':
