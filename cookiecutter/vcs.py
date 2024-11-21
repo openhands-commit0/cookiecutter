@@ -145,4 +145,5 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
                 f'Failed to checkout {checkout}:\n{str(e)}'
             ) from e
 
-    return repo_dir
+    # Convert repo_dir to string to match test expectations
+    return str(repo_dir)
