@@ -104,7 +104,7 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
 
     logger.debug('Running command: %s', ' '.join(clone_cmd))
     try:
-        subprocess.check_output(clone_cmd, cwd=clone_to_dir, stderr=subprocess.STDOUT)
+        subprocess.check_output(clone_cmd, cwd=str(clone_to_dir), stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:
         output = e.output.decode('utf-8')
         if 'not found' in output.lower():
@@ -129,7 +129,7 @@ def clone(repo_url: str, checkout: Optional[str]=None, clone_to_dir: 'os.PathLik
             checkout_cmd = ['hg', 'update', checkout]
 
         try:
-            subprocess.check_output(checkout_cmd, cwd=repo_dir, stderr=subprocess.STDOUT)
+            subprocess.check_output(checkout_cmd, cwd=str(repo_dir), stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:
             output = e.output.decode('utf-8')
             if any(error in output for error in BRANCH_ERRORS):
